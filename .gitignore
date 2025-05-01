@@ -1,0 +1,11 @@
+.jpeg
+.png
+.jpg
+.gif
+.webp
+.svg
+.ico
+
+content/
+venv/
+ucsd-3-class-labeled-retinal-oct-images.zip
