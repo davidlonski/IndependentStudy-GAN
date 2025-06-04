@@ -15,11 +15,13 @@ class DataLoader:
         img[img == 255] = 0
 
 
+        '''
         ## Random spin of the image
         angle = random.randint(0, 360)  # Generate random angle between 0 and 360 degrees
         rows, cols = img.shape[:2]
         M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, 1)  # Get rotation matrix
         img = cv2.warpAffine(img, M, (cols, rows))  # Apply rotation
+        '''
 
         # Optional: Normalize the image
         cleaned_image = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)

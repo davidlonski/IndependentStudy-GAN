@@ -18,6 +18,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
+import time
+from tqdm import tqdm
+import pandas as pd
 
 class WGANTrainer:
     def __init__(self, 
@@ -157,7 +160,7 @@ class WGANTrainer:
         )
         
     def train(self):
-        """Main training loop"""
+        """Main training loop with time tracking and progress bars"""
         # Initialize models if not already done
         if self.netG is None or self.netD is None:
             self.initialize_models()
@@ -180,12 +183,22 @@ class WGANTrainer:
         print("Starting Training Loop...")
         iters = 0
         
-        # For each epoch
-        for epoch in range(self.num_epochs):
-            # For each batch in the dataloader
-            for i, data in enumerate(dataloader, 0):
+        # Track overall training time
+        self.total_start_time = time.time()
+        self.epoch_times = []
+        
+        # For each epoch with tqdm
+        for epoch in tqdm(range(self.num_epochs), desc="Epochs"):
+            # Track epoch time
+            epoch_start_time = time.time()
+            
+            # For each batch in the dataloader with tqdm
+            for i, data in enumerate(tqdm(dataloader, desc=f"Batches (Epoch {epoch})")):
+                # Track batch time
+                batch_start_time = time.time()
+                
                 # Train discriminator
-                for _ in range(n_critic):
+                for _ in tqdm(range(n_critic), desc="Discriminator Training", leave=False):
                     self.netD.zero_grad(set_to_none=True)
                     
                     # Format batch
@@ -226,11 +239,14 @@ class WGANTrainer:
                 scaler.step(self.optimizerG)
                 scaler.update()
                 
+                # Calculate batch time
+                batch_time = time.time() - batch_start_time
+                
                 # Output training stats
                 if i % 50 == 0:
-                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f'
-                          % (epoch, self.num_epochs, i, len(dataloader),
-                             errD.item(), errG.item()))
+                    print(f'[Epoch {epoch}/{self.num_epochs}][Batch {i}/{len(dataloader)}] '
+                          f'Loss_D: {errD.item():.4f} Loss_G: {errG.item():.4f} '
+                          f'Batch Time: {batch_time:.4f}s')
                 
                 # Save Losses for plotting later
                 self.G_losses.append(errG.item())
@@ -243,7 +259,16 @@ class WGANTrainer:
                     self.img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
                 
                 iters += 1
-                
+            
+            # Calculate and print epoch time
+            epoch_time = time.time() - epoch_start_time
+            self.epoch_times.append(epoch_time)
+            print(f'Epoch {epoch} completed in {epoch_time:.2f} seconds')
+        
+        # Calculate and print total training time
+        self.total_training_time = time.time() - self.total_start_time
+        print(f'Total training time: {self.total_training_time:.2f} seconds ({self.total_training_time/3600:.2f} hours)')
+        
     def plot_training_results(self):
         """Plot the training results"""
         plt.figure(figsize=(10,5))
@@ -255,47 +280,132 @@ class WGANTrainer:
         plt.legend()
         plt.show()
         
-        # Plot the fake images from the last epoch
-        plt.figure(figsize=(8,8))
-        plt.axis("off")
-        plt.title("Fake Images")
-        plt.imshow(np.transpose(self.img_list[-1],(1,2,0)))
-        plt.show()
-        
     def save_results(self):
         """Save the generated images and model"""
+        path = f'../../generated_images/WGAN_Test_{self.image_size}'
+
         # Create directory for saving images if it doesn't exist
-        os.makedirs('../../generated_images/WGAN', exist_ok=True)
+        os.makedirs(path, exist_ok=True)
         
-        # Save the final grid of fake images
-        plt.figure(figsize=(15,15))
-        plt.axis("off")
-        plt.title("Final Fake Images Grid")
-        grid_img = np.transpose(self.img_list[-1],(1,2,0))
-        plt.imshow(grid_img)
-        plt.savefig('../../generated_images/WGAN/final_grid.png', bbox_inches='tight', pad_inches=0)
-        plt.close()
-        
-        # Generate and save individual fake images
-        print("Generating and saving individual fake images...")
-        with torch.no_grad():
-            # Generate a batch of fake images
-            noise = torch.randn(64, self.nz, 1, 1, device=self.device)
-            fake_images = self.netG(noise).detach().cpu()
+        # if the path already has content, make a new folder with a 1 at the end. if there is already a 1, make a new folder with a 2 at the end. and so on.
+        if os.path.exists(path):
+            i = 1
+            while os.path.exists(f'{path}_{i}'):
+                i += 1
+            path = f'{path}_{i}'
+            os.makedirs(path, exist_ok=True)
+
+        def save_results_to_csv(self):
+            """Save training results to a CSV file"""
+            # Create separate DataFrames for different metrics
+            # Per-batch losses
+            batch_results = pd.DataFrame({
+                'G_losses': self.G_losses,
+                'D_losses': self.D_losses
+            })
             
-            # Save individual images
-            for idx in range(fake_images.size(0)):
-                vutils.save_image(fake_images[idx], 
-                                f'../../generated_images/WGAN/fake_image_{idx+1}.png',
-                                normalize=True)
-        
-        # Save the trained model
-        torch.save({
-            'generator_state_dict': self.netG.state_dict(),
-            'discriminator_state_dict': self.netD.state_dict(),
-            'optimizerG_state_dict': self.optimizerG.state_dict(),
-            'optimizerD_state_dict': self.optimizerD.state_dict(),
-        }, '../../models/WGAN/gan_model.pth')
+            # Per-epoch times
+            epoch_results = pd.DataFrame({
+                'epoch': range(len(self.epoch_times)),
+                'epoch_time': self.epoch_times
+            })
+            
+            # Save both DataFrames
+            batch_results.to_csv(f'{path}/batch_results.csv', index=False)
+            epoch_results.to_csv(f'{path}/epoch_results.csv', index=False)
+            
+            # Create a summary DataFrame
+            summary = pd.DataFrame({
+                'total_training_time': [self.total_training_time],
+                'total_epochs': [len(self.epoch_times)],
+                'total_batches': [len(self.G_losses)],
+                'final_G_loss': [self.G_losses[-1]],
+                'final_D_loss': [self.D_losses[-1]]
+            })
+            summary.to_csv(f'{path}/training_summary.csv', index=False)
+
+        def save_final_grid(self):
+            # Save the final grid of fake images
+            plt.figure(figsize=(15,15))
+            plt.axis("off")
+            plt.title("Final Fake Images Grid")
+            grid_img = np.transpose(self.img_list[-1],(1,2,0))
+            plt.imshow(grid_img)
+            plt.savefig(f'{path}/final_grid.png', bbox_inches='tight', pad_inches=0)
+            plt.close()
+
+        def save_individual_fake_images(self, number_of_images=64):
+            # Generate and save individual fake images
+            # Create a separate directory for individual images
+            individual_images_dir = os.path.join(path, 'individual_images')
+            os.makedirs(individual_images_dir, exist_ok=True)
+            
+            with torch.no_grad():
+                # Generate a batch of fake images
+                noise = torch.randn(number_of_images, self.nz, 1, 1, device=self.device)
+                fake_images = self.netG(noise).detach().cpu()
+                
+                # Save individual images
+                for idx in range(fake_images.size(0)):
+                    vutils.save_image(fake_images[idx], 
+                                    os.path.join(individual_images_dir, f'fake_image_{idx+1}.png'),
+                                    normalize=True)
+
+        def save_training_progress_animation(self):
+            # Create and save the animation of training progress
+            try:
+                fig = plt.figure(figsize=(8,8))
+                plt.axis("off")
+                ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in self.img_list]
+                ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
+                
+                # Save the animation
+                ani.save(f'{path}/training_progress.gif', writer='pillow')
+            except Exception as e:
+                print(f"Error creating animation: {str(e)}")
+            finally:
+                plt.close(fig)
+
+        def save_real_vs_fake_comparison(self):
+            # Create a new dataloader for real images
+            dataloader = self.create_dataloader()
+            
+            # Save image of real vs fake 
+            # Grab a batch of real images from the dataloader
+            real_batch = next(iter(dataloader))
+
+            # Plot the real images
+            plt.figure(figsize=(15,15))
+            plt.subplot(1,2,1)
+            plt.axis("off")
+            plt.title("Real Images")
+            real_grid = vutils.make_grid(real_batch[0].to(self.device)[:64], padding=5, normalize=True).cpu()
+            plt.imshow(np.transpose(real_grid,(1,2,0)))
+
+            # Plot the fake images from the last epoch
+            plt.subplot(1,2,2)
+            plt.axis("off")
+            plt.title("Fake Images")
+            plt.imshow(np.transpose(self.img_list[-1],(1,2,0)))
+            plt.savefig(f'{path}/real_vs_fake_comparison.png', bbox_inches='tight', pad_inches=0)
+            plt.close()
+
+        def save_trained_model(self):
+            # Save the trained model
+            torch.save({
+                'generator_state_dict': self.netG.state_dict(),
+                'discriminator_state_dict': self.netD.state_dict(),
+                'optimizerG_state_dict': self.optimizerG.state_dict(),
+                'optimizerD_state_dict': self.optimizerD.state_dict(),
+            }, f'{path}/gan_model_{self.image_size}.pth')
+
+        save_results_to_csv(self)
+        save_final_grid(self)
+        save_individual_fake_images(self, 256)
+        save_training_progress_animation(self)
+        save_real_vs_fake_comparison(self)
+        save_trained_model(self)
+
 
 if __name__ == '__main__':
     # Create trainer instance

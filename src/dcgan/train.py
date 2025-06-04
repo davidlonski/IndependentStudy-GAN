@@ -19,6 +19,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
+import time
+from tqdm import tqdm
 
 class DCGANTrainer:
     def __init__(self, 
@@ -158,7 +160,7 @@ class DCGANTrainer:
         )
         
     def train(self):
-        """Main training loop"""
+        """Main training loop with time tracking and progress bars"""
         # Initialize models if not already done
         if self.netG is None or self.netD is None:
             self.initialize_models()
@@ -169,8 +171,8 @@ class DCGANTrainer:
         # Create batch of latent vectors for visualization
         fixed_noise = torch.randn(64, self.nz, 1, 1, device=self.device)
         
-        # Initialize BCELoss
-        criterion = nn.BCELoss()
+        # Initialize BCEWithLogitsLoss instead of BCELoss
+        criterion = nn.BCEWithLogitsLoss()
         
         # Enable automatic mixed precision training
         scaler = torch.amp.GradScaler('cuda')
@@ -178,10 +180,19 @@ class DCGANTrainer:
         print("Starting Training Loop...")
         iters = 0
         
-        # For each epoch
-        for epoch in range(self.num_epochs):
-            # For each batch in the dataloader
-            for i, data in enumerate(dataloader, 0):
+        # Track overall training time
+        total_start_time = time.time()
+        
+        # For each epoch with tqdm
+        for epoch in tqdm(range(self.num_epochs), desc="Epochs"):
+            # Track epoch time
+            epoch_start_time = time.time()
+            
+            # For each batch in the dataloader with tqdm
+            for i, data in enumerate(tqdm(dataloader, desc=f"Batches (Epoch {epoch})")):
+                # Track batch time
+                batch_start_time = time.time()
+                
                 ############################
                 # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
                 ###########################
@@ -200,7 +211,7 @@ class DCGANTrainer:
                 
                 # Calculate gradients for D in backward pass
                 scaler.scale(errD_real).backward()
-                D_x = output.mean().item()
+                D_x = torch.sigmoid(output).mean().item()  # Apply sigmoid for logging
                 
                 # Train with all-fake batch
                 # Generate batch of latent vectors
@@ -216,7 +227,7 @@ class DCGANTrainer:
                 
                 # Calculate the gradients for all-fake batch
                 scaler.scale(errD_fake).backward()
-                D_G_z1 = output.mean().item()
+                D_G_z1 = torch.sigmoid(output).mean().item()  # Apply sigmoid for logging
                 
                 # Add the gradients from the all-real and all-fake batches
                 errD = errD_real + errD_fake
@@ -238,17 +249,20 @@ class DCGANTrainer:
                 
                 # Calculate gradients for G
                 scaler.scale(errG).backward()
-                D_G_z2 = output.mean().item()
+                D_G_z2 = torch.sigmoid(output).mean().item()  # Apply sigmoid for logging
                 
                 # Update G
                 scaler.step(self.optimizerG)
                 scaler.update()
                 
+                # Calculate batch time
+                batch_time = time.time() - batch_start_time
+                
                 # Output training stats
                 if i % 50 == 0:
-                    print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                          % (epoch, self.num_epochs, i, len(dataloader),
-                             errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+                    tqdm.write('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f\tBatch Time: %.4f'
+                        % (epoch, self.num_epochs, i, len(dataloader),
+                            errD.item(), errG.item(), D_x, D_G_z1, D_G_z2, batch_time))
                 
                 # Save Losses for plotting later
                 self.G_losses.append(errG.item())
@@ -261,7 +275,15 @@ class DCGANTrainer:
                     self.img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
                 
                 iters += 1
-                
+            
+            # Calculate and print epoch time
+            epoch_time = time.time() - epoch_start_time
+            print(f'Epoch {epoch} completed in {epoch_time:.2f} seconds')
+        
+        # Calculate and print total training time
+        total_time = time.time() - total_start_time
+        print(f'Total training time: {total_time:.2f} seconds ({total_time/3600:.2f} hours)')
+        
     def plot_training_results(self):
         """Plot the training results"""
         plt.figure(figsize=(10,5))
@@ -283,15 +305,24 @@ class DCGANTrainer:
     def save_results(self):
         """Save the generated images and model"""
         # Create directory for saving images if it doesn't exist
-        os.makedirs('../../generated_images/DCGAN', exist_ok=True)
+        os.makedirs(f'../../generated_images/DCGAN_Test_{self.image_size}', exist_ok=True)
         
+        # if the path already has content, make a new folder with a 1 at the end. if there is already a 1, make a new folder with a 2 at the end. and so on.
+        if os.path.exists(f'../../generated_images/DCGAN_Test_{self.image_size}'):
+            i = 1
+            while os.path.exists(f'../../generated_images/DCGAN_Test_{self.image_size}_{i}'):
+                i += 1
+            path = f'../../generated_images/DCGAN_Test_{self.image_size}_{i}'
+            os.makedirs(path, exist_ok=True)
+
+
         # Save the final grid of fake images
         plt.figure(figsize=(15,15))
         plt.axis("off")
         plt.title("Final Fake Images Grid")
         grid_img = np.transpose(self.img_list[-1],(1,2,0))
         plt.imshow(grid_img)
-        plt.savefig('../../generated_images/DCGAN/final_grid.png', bbox_inches='tight', pad_inches=0)
+        plt.savefig(f'{path}/final_grid.png', bbox_inches='tight', pad_inches=0)
         plt.close()
         
         # Generate and save individual fake images
@@ -304,8 +335,46 @@ class DCGANTrainer:
             # Save individual images
             for idx in range(fake_images.size(0)):
                 vutils.save_image(fake_images[idx], 
-                                f'../../generated_images/DCGAN/fake_image_{idx+1}.png',
+                                f'{path}/fake_image_{idx+1}.png',
                                 normalize=True)
+        
+        # Create and save the animation of training progress
+        print("Creating training progress animation...")
+        try:
+            fig = plt.figure(figsize=(8,8))
+            plt.axis("off")
+            ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in self.img_list]
+            ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
+            
+            # Save the animation
+            ani.save(f'{path}/training_progress.gif', writer='pillow')
+            print("Training progress animation saved successfully!")
+        except Exception as e:
+            print(f"Error creating animation: {str(e)}")
+        finally:
+            plt.close(fig)
+        
+        # Create a new dataloader for real images
+        dataloader = self.create_dataloader()
+        
+        # Save image of real vs fake 
+        # Grab a batch of real images from the dataloader
+        real_batch = next(iter(dataloader))
+
+        # Plot the real images
+        plt.figure(figsize=(15,15))
+        plt.subplot(1,2,1)
+        plt.axis("off")
+        plt.title("Real Images")
+        plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(self.device)[:64], padding=5, normalize=True).cpu(),(1,2,0)))
+
+        # Plot the fake images from the last epoch
+        plt.subplot(1,2,2)
+        plt.axis("off")
+        plt.title("Fake Images")
+        plt.imshow(np.transpose(self.img_list[-1],(1,2,0)))
+        plt.savefig(f'{path}/real_vs_fake_comparison.png', bbox_inches='tight', pad_inches=0)
+        plt.close()
         
         # Save the trained model
         torch.save({
@@ -313,7 +382,7 @@ class DCGANTrainer:
             'discriminator_state_dict': self.netD.state_dict(),
             'optimizerG_state_dict': self.optimizerG.state_dict(),
             'optimizerD_state_dict': self.optimizerD.state_dict(),
-        }, '../../models/DCGAN/gan_model.pth')
+        }, f'{path}/gan_model_{self.image_size}.pth')
 
 if __name__ == '__main__':
     # Create trainer instance
