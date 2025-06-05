@@ -2,6 +2,14 @@ import cv2
 import random
 import os
 from tqdm import tqdm
+import multiprocessing
+
+def process_one_image(args):
+    input_path, output_path = args
+    # Create a new DataLoader instance for each process (avoid sharing self)
+    loader = DataLoader()
+    processed = loader.preprocess_oct_image(input_path)
+    cv2.imwrite(output_path, processed)
 
 class DataLoader:
     def __init__(self):
@@ -59,13 +67,17 @@ class DataLoader:
             return
         
         print(f"Processing {len(to_process)} new images for class {class_name}...")
-        
-        for image_file in tqdm(to_process, desc=f"Processing {class_name}"):
-            input_path = os.path.join(input_dir, image_file)
-            output_path = os.path.join(class_output_dir, f"processed_{image_file}")
-            
-            processed = self.preprocess_oct_image(input_path)
-            cv2.imwrite(output_path, processed)
+
+        # Prepare arguments for multiprocessing
+        args = [
+            (os.path.join(input_dir, image_file),
+             os.path.join(class_output_dir, f"processed_{image_file}"))
+            for image_file in to_process
+        ]
+
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            # Use tqdm to wrap the imap iterator for progress bar
+            list(tqdm(pool.imap(process_one_image, args), total=len(args), desc=f"Processing {class_name}"))
 
 
 if __name__ == "__main__":
