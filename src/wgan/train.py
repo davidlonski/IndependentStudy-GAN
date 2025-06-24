@@ -269,16 +269,6 @@ class WGANTrainer:
         self.total_training_time = time.time() - self.total_start_time
         print(f'Total training time: {self.total_training_time:.2f} seconds ({self.total_training_time/3600:.2f} hours)')
         
-    def plot_training_results(self):
-        """Plot the training results"""
-        plt.figure(figsize=(10,5))
-        plt.title("Generator and Discriminator Loss During Training")
-        plt.plot(self.G_losses, label="G")
-        plt.plot(self.D_losses, label="D")
-        plt.xlabel("iterations")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.show()
         
     def save_results(self):
         """Save the generated images and model"""
@@ -399,12 +389,25 @@ class WGANTrainer:
                 'optimizerD_state_dict': self.optimizerD.state_dict(),
             }, f'{path}/gan_model_{self.image_size}.pth')
 
+        def plot_training_results(self):
+            """Plot the training results"""
+            plt.figure(figsize=(10,5))
+            plt.title("Generator and Discriminator Loss During Training")
+            plt.plot(self.G_losses, label="G")
+            plt.plot(self.D_losses, label="D")
+            plt.xlabel("iterations")
+            plt.ylabel("Loss")
+            plt.legend()
+            plt.savefig(f'{path}/training_results.png', bbox_inches='tight', pad_inches=0)
+            plt.close()
+
         save_results_to_csv(self)
         save_final_grid(self)
         save_individual_fake_images(self, 256)
         save_training_progress_animation(self)
         save_real_vs_fake_comparison(self)
         save_trained_model(self)
+        plot_training_results(self)
 
 
 if __name__ == '__main__':
@@ -418,5 +421,4 @@ if __name__ == '__main__':
     trainer.train()
     
     # Plot and save results
-    trainer.plot_training_results()
     trainer.save_results()

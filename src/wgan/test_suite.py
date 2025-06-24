@@ -7,7 +7,6 @@ def run_test(test_num, **kwargs):
     trainer = WGANTrainer(**kwargs)
     trainer.preprocess_data()
     trainer.train()
-    trainer.plot_training_results()
     trainer.save_results()
 
 if __name__ == '__main__':
@@ -31,15 +30,15 @@ if __name__ == '__main__':
 
     test_configs = [
         # Test 1: Increase Model Capacity
-        dict(output_dir="content/TRAIN_TEST_1", ngf=128, ndf=128),
+        dict(ngf=128, ndf=128),
         # Test 2: Lower Batch Size
-        dict(output_dir="content/TRAIN_TEST_2", batch_size=64),
+        dict(batch_size=64),
         # Test 3: Higher Learning Rate
-        dict(output_dir="content/TRAIN_TEST_3", lr=0.0002),
+        dict(lr=0.0002),
         # Test 4: Increase Latent Vector Size
-        dict(output_dir="content/TRAIN_TEST_4", nz=256),
+        dict(nz=256),
         # Test 5: More Training Epochs
-        dict(output_dir="content/TRAIN_TEST_5", num_epochs=200),
+        dict(num_epochs=200),
     ]
 
     # Enable cuDNN auto-tuner for optimal hardware performance

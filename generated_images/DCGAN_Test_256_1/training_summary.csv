@@ -1,0 +1,2 @@
+total_training_time,total_epochs,total_batches,final_G_loss,final_D_loss
+42036.85209107399,100,75800,0.6931469440460205,1.0064091682434082
