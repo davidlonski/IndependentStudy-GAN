@@ -2,7 +2,7 @@
 
 **A Low-Cost Approach for Fake Medical Image Synthesis.** PyTorch DC-GAN and W-GAN models trained to generate synthetic retinal OCT scans on a single lab GPU.
 
-David Lonski, with faculty advisor Dr. Ning Yu, SUNY Brockport. Research conducted February to July 2025: an independent study in the spring and paid summer research.
+David Lonski. Undergraduate research conducted February to July 2025: an independent study in the spring and paid summer research.
 
 **Full write-up:** [Research Report 01 (PDF)](https://www.davidlonski.com/research/medical-image-synthesis/report.pdf) · **More research:** [davidlonski.com/research](https://www.davidlonski.com/research)
 
@@ -229,9 +229,9 @@ EMAIL_RECIPIENT=recipient@example.com
 
 ## Report and acknowledgments
 
-[Research Report 01, "A Low-Cost Approach for Fake Medical Image Synthesis" (PDF)](https://www.davidlonski.com/research/medical-image-synthesis/report.pdf) covers the methods, every run's configuration, the figures, and a re-analysis of the per-batch telemetry. The work was presented as poster #35 at SUNY Brockport Scholars Day on April 9, 2025 (Lonski, Yu). More projects are at [davidlonski.com/research](https://www.davidlonski.com/research).
+[Research Report 01, "A Low-Cost Approach for Fake Medical Image Synthesis" (PDF)](https://www.davidlonski.com/research/medical-image-synthesis/report.pdf) covers the methods, every run's configuration, the figures, and a re-analysis of the per-batch telemetry. The work was presented as a poster on April 9, 2025. More projects are at [davidlonski.com/research](https://www.davidlonski.com/research).
 
-Thanks to Dr. Ning Yu for advising this work, and to SUNY Brockport for lab GPU access and summer research support.
+Thanks to the faculty advisor of this work, and to the university for lab GPU access and summer research support.
 
 ## References
 
