@@ -17,3 +17,6 @@ __pycache__/
 *.pyw
 
 *.pth
+
+# Email alert credentials
+.env
